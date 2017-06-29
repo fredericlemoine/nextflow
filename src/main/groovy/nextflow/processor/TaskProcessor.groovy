@@ -90,6 +90,7 @@ import static nextflow.processor.ErrorStrategy.*
 import nextflow.util.Escape
 
 /**
+ * Implement nextflow process execution logic
  *
  * @author Paolo Di Tommaso <paolo.ditommaso@gmail.com>
  */
