@@ -106,7 +106,6 @@ class GridTaskHandler extends TaskHandler {
      */
     @Override
     void submit() {
-        log.debug "Launching process > ${task.name} -- work folder: ${task.workDir}"
         // -- create the wrapper script
         executor.createBashWrapperBuilder(task).build()
 
@@ -129,15 +128,16 @@ class GridTaskHandler extends TaskHandler {
                 // -- wait the the process completes
                 result = process.text
                 exitStatus = process.waitFor()
-                log.trace "submit ${task.name} > exit: $exitStatus\n$result\n"
 
                 if( exitStatus ) {
-                    throw new ProcessSubmitException("Failed to submit job to grid scheduler for execution")
+                    log.debug "Failed to submit process ${task.name} > exit-status=$exitStatus; work-dir=$task.workDir\n$result\n"
+                    throw new ProcessSubmitException("Failed to submit process to grid scheduler for execution")
                 }
 
                 // save the JobId in the
                 this.jobId = executor.parseJobId(result)
                 this.status = SUBMITTED
+                log.debug "Submitted process ${task.name} > job-id=$jobId; work-dir=${task.workDir}"
             }
             finally {
                 // make sure to release all resources
