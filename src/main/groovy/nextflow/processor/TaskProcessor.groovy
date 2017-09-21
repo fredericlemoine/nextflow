@@ -596,7 +596,7 @@ class TaskProcessor {
             return
 
         def hash = createTaskHashKey(task)
-        checkCachedOrLaunchTask(task, hash, resumable)
+        checkCachedOrLaunchTask(task, hash, resumable, restartable)
     }
 
     @Memoized
@@ -757,13 +757,16 @@ class TaskProcessor {
      *      The unique {@code HashCode} for the given task inputs
      * @param script
      *      The script to be run (only when it's a merge task)
+     * @param  restartTask
+     *      If true, then relaunch the task in the same working directory: Useful only if scratch=false ,
+     *      in which case, temporary files are still present in the work folder
      * @return
      *      {@code false} when a cached result has been found and the execution has skipped,
      *      or {@code true} if the task has been submitted for execution
      *
      */
 
-    final protected boolean checkCachedOrLaunchTask( TaskRun task, HashCode hash, boolean shouldTryCache ) {
+    final protected boolean checkCachedOrLaunchTask( TaskRun task, HashCode hash, boolean shouldTryCache, boolean restartTask ) {
 
         int tries = 0
         while( true ) {
@@ -788,14 +791,18 @@ class TaskProcessor {
             if( cached )
                 return false
 
-            if( exists )
+            if( exists && restartTask) {
+                submitTask(task, hash, folder)
+                return true
+            }
+            if( exists ) {
                 continue
+            }
 
             // submit task for execution
-            submitTask( task, hash, folder )
+            submitTask(task, hash, folder)
             return true
         }
-
     }
 
     /**
@@ -996,7 +1003,7 @@ class TaskProcessor {
                 log.warn "[$task.hashLog] ${error.message} -- Cause: ${error.cause.message} -- Execution is retried"
                 final taskCopy = task.makeCopy()
                 taskCopy.runType = RunType.RETRY
-                session.getExecService().submit { checkCachedOrLaunchTask( taskCopy, taskCopy.hash, false ) }
+                session.getExecService().submit { checkCachedOrLaunchTask( taskCopy, taskCopy.hash, false, false ) }
                 task.failed = true
                 return RETRY
             }
@@ -1017,6 +1024,7 @@ class TaskProcessor {
                     def msg = "[$task.hashLog] $error.message"
                     if( errorStrategy == IGNORE ) msg += " -- Error is ignored"
                     else if( errorStrategy == RETRY ) msg += " -- Execution is retried ($taskErrCount)"
+
                     log.warn msg
                     task.failed = true
                     return errorStrategy
@@ -1075,7 +1083,7 @@ class TaskProcessor {
         }
 
         // RETRY strategy -- check that process do not exceed 'maxError' and the task do not exceed 'maxRetries'
-        if( errorStrategy == ErrorStrategy.RETRY ) {
+        if( errorStrategy == ErrorStrategy.RETRY) {
             final int maxErrors = task.config.getMaxErrors()
             final int maxRetries = task.config.getMaxRetries()
 
@@ -1087,7 +1095,7 @@ class TaskProcessor {
                         taskCopy.runType = RunType.RETRY
                         taskCopy.error = null
                         taskCopy.resolve(taskBody)
-                        checkCachedOrLaunchTask( taskCopy, taskCopy.hash, false )
+                        checkCachedOrLaunchTask( taskCopy, taskCopy.hash, false, restartable)
                     }
                     catch( Throwable e ) {
                         log.error("Unable to re-submit task `${taskCopy.name}`", e)
@@ -2021,6 +2029,13 @@ class TaskProcessor {
      */
     boolean isCacheable() {
         session.cacheable && config.cacheable
+    }
+
+    /**
+     * Whenever the process can be restarted
+     */
+    boolean isRestartable() {
+        session.cacheable && config.restartable
     }
 
     @PackageScope boolean isResumable() {

@@ -60,6 +60,7 @@ class ProcessConfig implements Map<String,Object> {
             'beforeScript',
             'echo',
             'cache',
+            'restart',
             'cpus',
             'container',
             'cleanup',
@@ -126,6 +127,7 @@ class ProcessConfig implements Map<String,Object> {
         configProperties = important ? new ReadOnlyMap(important) : new LinkedHashMap()
         configProperties.echo = false
         configProperties.cacheable = true
+        configProperties.restartable = false
         configProperties.shell = BashWrapperBuilder.BASH
         configProperties.validExitStatus = [0]
         configProperties.maxRetries = 1
@@ -203,6 +205,9 @@ class ProcessConfig implements Map<String,Object> {
 
             case 'cacheable':
                 return isCacheable()
+
+            case 'restartable':
+                return isRestartable()
 
             case 'ext':
                 if( !configProperties.containsKey('ext') ) {
@@ -334,6 +339,23 @@ class ProcessConfig implements Map<String,Object> {
 
         return true
     }
+
+    // If the process may be restartable from its previous work dir
+    // default false
+    boolean isRestartable() {
+        def value = configProperties.restart
+        if( value == null )
+            return false
+
+        if( value instanceof Boolean )
+            return value
+
+        if( value instanceof String && value in BOOL_YES )
+            return true
+
+        return false
+    }
+
 
     HashMode getHashMode() {
         configProperties.cache == 'deep' ? HashMode.DEEP : HashMode.STANDARD
