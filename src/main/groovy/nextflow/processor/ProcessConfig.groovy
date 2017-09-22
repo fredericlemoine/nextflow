@@ -19,6 +19,10 @@
  */
 
 package nextflow.processor
+
+import groovy.json.internal.Cache
+import nextflow.script.CheckpointsList
+
 import static nextflow.util.CacheHelper.HashMode
 
 import groovy.transform.PackageScope
@@ -106,6 +110,8 @@ class ProcessConfig implements Map<String,Object> {
     private inputs = new InputsList()
 
     private outputs = new OutputsList()
+
+    private checkpoints = new CheckpointsList()
 
     /**
      * Initialize the taskConfig object with the defaults values
@@ -243,6 +249,13 @@ class ProcessConfig implements Map<String,Object> {
         outputs
     }
 
+
+    /**
+     * Type shortcut to {@code #configProperties.outputs}
+     */
+    CheckpointsList getCheckpoints() {
+        checkpoints
+    }
 
     /*
      * note: without this method definition {@link BaseScript#echo} will be invoked

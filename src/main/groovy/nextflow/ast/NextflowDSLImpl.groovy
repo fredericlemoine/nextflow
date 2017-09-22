@@ -206,6 +206,14 @@ public class NextflowDSLImpl implements ASTTransformation {
                         }
                         break
 
+                    case 'checkpoint':
+                        if( stm instanceof ExpressionStatement ) {
+                            fixLazyGString( stm )
+                            fixStdinStdout( stm )
+                            convertCheckpointMethod( stm.getExpression() )
+                        }
+                        break
+
                     case 'exec':
                         iterator.remove()
                         execStatements << stm
@@ -549,6 +557,31 @@ public class NextflowDSLImpl implements ASTTransformation {
         // continue to traverse
         if( methodCall.objectExpression instanceof MethodCallExpression ) {
             convertOutputMethod(methodCall.objectExpression)
+        }
+
+    }
+
+    protected void convertCheckpointMethod( Expression expression ) {
+        log.trace "convert > checkpoint expression: $expression"
+
+        if( !(expression instanceof MethodCallExpression) ) {
+            return
+        }
+
+        def methodCall = expression as MethodCallExpression
+        def methodName = methodCall.getMethodAsString()
+        def nested = methodCall.objectExpression instanceof MethodCallExpression
+        log.trace "convert > checkpoint method: $methodName"
+
+        if( methodName in ['file'] && !nested ) {
+            // prefix the method name with the string '_out_'
+            methodCall.setMethod( new ConstantExpression('_out_' + methodName) )
+            fixMethodCall(methodCall)
+        }
+
+        // continue to traverse
+        if( methodCall.objectExpression instanceof MethodCallExpression ) {
+            convertCheckpointMethod(methodCall.objectExpression)
         }
 
     }

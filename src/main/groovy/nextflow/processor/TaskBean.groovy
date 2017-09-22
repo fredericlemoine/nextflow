@@ -81,6 +81,8 @@ class TaskBean implements Serializable, Cloneable {
 
     List<String> outputFiles
 
+    List<String,Path> checkpointFiles
+
     String stageInMode
 
     String stageOutMode
@@ -96,6 +98,7 @@ class TaskBean implements Serializable, Cloneable {
         shell = BashWrapperBuilder.BASH
         inputFiles = [:]
         outputFiles = []
+        checkpointFiles = [:]
     }
 
     TaskBean(TaskRun task) {
@@ -132,6 +135,7 @@ class TaskBean implements Serializable, Cloneable {
 
         this.inputFiles = task.getInputFilesMap()
         this.outputFiles = task.getOutputFilesNames()
+        this.checkpointFiles = task.getCheckpointFilesMap()
         this.sharedDir = task.getProcessor().getSession().getWorkDir()
         this.binDir = task.getProcessor().getSession().getBinDir()
         this.stageInMode = task.getProcessor().getConfig().stageInMode

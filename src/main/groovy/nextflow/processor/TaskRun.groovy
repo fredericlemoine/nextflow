@@ -19,6 +19,9 @@
  */
 
 package nextflow.processor
+
+import nextflow.script.CheckpointParam
+
 import java.nio.file.FileSystems
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
@@ -92,6 +95,10 @@ class TaskRun implements Cloneable {
      */
     Map<OutParam,Object> outputs = [:]
 
+    /**
+     * Holds the checkpoint value(s)
+     */
+    Map<CheckpointParam,Object> checkpoints = [:]
 
     void setInput( InParam param, Object value = null ) {
         assert param
@@ -110,6 +117,10 @@ class TaskRun implements Cloneable {
         outputs[param] = value
     }
 
+    void setCheckpoint(CheckpointParam param, Object value = null ) {
+        assert param
+        checkpoints[param] = value
+    }
 
     /**
      * The value to be piped to the process stdin
@@ -428,6 +439,24 @@ class TaskRun implements Cloneable {
         return result.unique()
     }
 
+    /**
+     * Look at the {@code nextflow.script.FileOutParam} which name is the expected
+     *  output name
+     *
+     */
+    @Memoized
+    List<String,Path> getCheckpointFilesMap() {
+
+        def result = [:]
+        def allFiles = checkpoints.values()
+        for( List<FileHolder> entry : allFiles ) {
+            if( entry ) for( FileHolder it : entry ) {
+                result[ it.stageName ] = it.storePath
+            }
+        }
+
+        return result
+    }
 
     /**
      * Get the map of *input* objects by the given {@code InParam} type

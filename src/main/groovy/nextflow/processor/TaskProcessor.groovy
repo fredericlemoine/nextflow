@@ -18,6 +18,9 @@
  *   along with Nextflow.  If not, see <http://www.gnu.org/licenses/>.
  */
 package nextflow.processor
+
+import nextflow.script.CheckpointParam
+
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.NoSuchFileException
@@ -744,6 +747,10 @@ class TaskProcessor {
                 task.setOutput(param)
         }
 
+        config.getCheckpoints().each { CheckpointParam param ->
+                task.setCheckpoint(param)
+        }
+
         return task
     }
 
@@ -1369,6 +1376,9 @@ class TaskProcessor {
     protected void collectOutputs( TaskRun task ) {
         collectOutputs( task, task.getTargetDir(), task.@stdout, task.context )
     }
+    protected void collectCheckpoints( TaskRun task ) {
+        collectCheckpoints( task, task.getTargetDir(), task.context )
+    }
 
     /**
      * Once the task has completed this method is invoked to collected all the task results
@@ -1397,6 +1407,23 @@ class TaskProcessor {
                     throw new IllegalArgumentException("Illegal output parameter: ${param.class.simpleName}")
 
             }
+        }
+
+        // mark ready for output binding
+        task.canBind = true
+    }
+
+
+    /**
+     * Once the task has completed this method is invoked to collected all the task results
+     *
+     * @param task
+     */
+    final protected void collectCheckpoints( TaskRun task, Path workDir, Map context ) {
+        log.trace "<$name> collecting checkpoints: ${task.checkpoints}"
+
+        task.checkpoints.keySet().each { CheckpointParam param ->
+            collectCheckpointFiles(task, param, workDir, context)
         }
 
         // mark ready for output binding
@@ -1464,7 +1491,6 @@ class TaskProcessor {
 
     }
 
-
     protected void collectOutValues( TaskRun task, ValueOutParam param, Map ctx ) {
 
         try {
@@ -1480,6 +1506,46 @@ class TaskProcessor {
         }
 
     }
+
+    protected void collectCheckpointFiles( TaskRun task, CheckpointParam param, Path workDir, Map context ) {
+
+        final List<Path> allFiles = []
+        // type file parameter can contain a multiple files pattern separating them with a special character
+        def entries = param.getFilePatterns(context, task.workDir)
+
+        // for each of them collect the produced files
+        entries.each { String filePattern ->
+            List<Path> result = null
+
+            def splitter = param.glob ? FilePatternSplitter.glob().parse(filePattern) : null
+            if( splitter?.isPattern() ) {
+                result = fetchResultFiles(param, filePattern, workDir)
+                // filter the inputs
+                if( !param.includeInputs ) {
+                    result = filterByRemovingStagedInputs(task, result)
+                    log.trace "Process ${task.name} > after removing staged inputs: ${result}"
+                }
+            }
+            else {
+                def path = param.glob ? splitter.strip(filePattern) : filePattern
+                def file = workDir.resolve(path)
+                def exists = param.followLinks ? file.exists() : file.exists(LinkOption.NOFOLLOW_LINKS)
+                if( exists )
+                    result = [file]
+                else
+                    log.debug "Process `${task.name}` is unable to find [${file.class.simpleName}]: `$file` (pattern: `$filePattern`)"
+            }
+
+            if( result )
+                allFiles.addAll(result)
+
+            else if( !param.optional )
+                throw new MissingFileException("Missing checkpoint file(s) `$filePattern` expected by process `${task.name}`")
+        }
+
+        task.setCheckpoint( param, allFiles.size()==1 ? allFiles[0] : allFiles )
+    }
+
 
     /**
      * Collect the file(s) with the name specified, produced by the execution
@@ -2006,6 +2072,7 @@ class TaskProcessor {
             collectOutputs(task)
         }
         catch ( Throwable error ) {
+            collectCheckpointFiles(task)
             fault = resumeOrDie(task, error)
         }
 

@@ -47,6 +47,11 @@ class SimpleFileCopyStrategy implements ScriptFileCopyStrategy {
     List<String> outputFiles
 
     /**
+     * The checkpoint file names
+     */
+    List<String,Path> checkpointFiles
+
+    /**
      * Path where output files need to be copied
      */
     Path targetDir
@@ -70,12 +75,14 @@ class SimpleFileCopyStrategy implements ScriptFileCopyStrategy {
     SimpleFileCopyStrategy() {
         this.inputFiles = [:]
         this.outputFiles = []
+        this.checkpointFiles = [:]
     }
 
 
     SimpleFileCopyStrategy( TaskBean bean ) {
         this.inputFiles = bean.inputFiles
         this.outputFiles = bean.outputFiles
+        this.checkpointFiles = bean.checkpointFiles
         this.targetDir = bean.targetDir
         this.stageinMode = bean.stageInMode
         this.stageoutMode = bean.stageOutMode
@@ -103,6 +110,15 @@ class SimpleFileCopyStrategy implements ScriptFileCopyStrategy {
             links << stageInputFile( storePath, stageName )
 
         }
+        checkpointFiles.each { stageName, storePath ->
+
+            // delete all previous files with the same name
+            delete << "rm -f ${Escape.path(stageName)}"
+
+            // link them
+            links << stageInputFile( storePath, stageName )
+        }
+
         links << '' // just to have new-line at the end of the script
 
         // return a big string containing the command
