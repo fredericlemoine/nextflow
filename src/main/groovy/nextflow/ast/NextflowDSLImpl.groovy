@@ -172,6 +172,7 @@ public class NextflowDSLImpl implements ASTTransformation {
              * iterate over the list of statements to:
              * - converts the method after the 'input:' label as input parameters
              * - converts the method after the 'output:' label as output parameters
+             * - converts the method after the 'checkpoint:' label as checkpoint parameters
              * - collect all the statement after the 'exec:' label
              */
             def source = new StringBuilder()
@@ -574,8 +575,8 @@ public class NextflowDSLImpl implements ASTTransformation {
         log.trace "convert > checkpoint method: $methodName"
 
         if( methodName in ['file'] && !nested ) {
-            // prefix the method name with the string '_out_'
-            methodCall.setMethod( new ConstantExpression('_out_' + methodName) )
+            // prefix the method name with the string '_checkpoint_'
+            methodCall.setMethod( new ConstantExpression('_checkpoint_' + methodName) )
             fixMethodCall(methodCall)
         }
 
@@ -605,7 +606,7 @@ public class NextflowDSLImpl implements ASTTransformation {
         final name = methodCall.methodAsString
 
         withinSetMethod = name == '_in_set' || name == '_out_set'
-        withinFileMethod = name == '_in_file' || name == '_out_file'
+        withinFileMethod = name == '_in_file' || name == '_out_file' || name == '_checkpoint_file'
         withinEachMethod = name == '_in_each'
 
         try {

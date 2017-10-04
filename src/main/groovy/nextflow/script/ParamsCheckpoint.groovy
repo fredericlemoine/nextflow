@@ -24,9 +24,6 @@ import java.nio.file.Path
 import groovy.transform.InheritConstructors
 import groovy.transform.PackageScope
 import groovy.util.logging.Slf4j
-import groovyx.gpars.dataflow.DataflowQueue
-import groovyx.gpars.dataflow.DataflowVariable
-import groovyx.gpars.dataflow.DataflowWriteChannel
 import nextflow.exception.IllegalFileException
 import nextflow.file.FilePatternSplitter
 import nextflow.processor.ProcessConfig
@@ -47,12 +44,77 @@ interface CheckpointParam {
     short getIndex()
 }
 
+
+@Slf4j
+abstract class BaseCheckpointParam extends BaseParam implements CheckpointParam {
+
+    protected fromObject
+
+    protected bindObject
+
+    protected owner
+
+    BaseCheckpointParam( ProcessConfig config ) {
+        this(config.getOwnerScript().getBinding(), config.getCheckpoints())
+    }
+
+    /**
+     * @param script The global script object
+     * @param obj
+     */
+    BaseCheckpointParam( Binding binding, List holder, short ownerIndex = -1 ) {
+        super(binding,holder,ownerIndex)
+    }
+
+    abstract String getTypeName()
+
+    /**
+     * Lazy parameter initializer.
+     *
+     * @return The parameter object itself
+     */
+    @Override
+    protected void lazyInit() {
+
+        if( fromObject == null && (bindObject == null || bindObject instanceof GString || bindObject instanceof Closure ) ) {
+            throw new IllegalStateException("Missing 'bind' declaration in input parameter")
+        }
+
+        // fallback on the bind object if the 'fromObject' is not defined
+        if( fromObject == null ) {
+            fromObject = bindObject
+        }
+    }
+
+    /**
+     * @return The parameter name
+     */
+    def String getName() {
+        if( bindObject instanceof TokenVar )
+            return bindObject.name
+
+        if( bindObject instanceof String )
+            return bindObject
+
+        if( bindObject instanceof Closure )
+            return '__$' + this.toString()
+
+        throw new IllegalArgumentException("Invalid process input definition")
+    }
+
+    BaseCheckpointParam bind( def obj ) {
+        this.bindObject = obj
+        return this
+    }
+}
+
+
 /**
  * Model a process *file* output parameter
  */
 @Slf4j
 @InheritConstructors
-class FileCheckpointParam extends BaseOutParam implements OutParam, OptionalParam {
+class FileCheckpointParam extends BaseCheckpointParam implements CheckpointParam, OptionalParam {
     /**
      * The character used to separate multiple names (pattern) in the output specification
      */
@@ -63,6 +125,13 @@ class FileCheckpointParam extends BaseOutParam implements OutParam, OptionalPara
      * By default it does not, coherently with linux bash rule
      */
     protected boolean includeHidden
+
+    /**
+     * When {@code true} file pattern includes input files as well as output files.
+     * By default a file pattern matches only against files produced by the process, not
+     * the ones received as input
+     */
+    protected boolean includeInputs
 
     /**
      * The type of path to output, either {@code file}, {@code dir} or {@code any}
@@ -101,7 +170,7 @@ class FileCheckpointParam extends BaseOutParam implements OutParam, OptionalPara
 
     boolean getGlob() { glob }
 
-
+    @Override String getTypeName() { 'file' }
     /**
      * @return {@code true} when the file name is parametric i.e contains a variable name to be resolved, {@code false} otherwise
      */
@@ -148,7 +217,7 @@ class FileCheckpointParam extends BaseOutParam implements OutParam, OptionalPara
         return this
     }
 
-    BaseOutParam bind( obj ) {
+    BaseCheckpointParam bind( obj ) {
 
         if( obj instanceof GString ) {
             gstring = obj
@@ -165,7 +234,6 @@ class FileCheckpointParam extends BaseOutParam implements OutParam, OptionalPara
             dynamicObj = obj
             return this
         }
-
         this.filePattern = obj.toString()
         return this
     }

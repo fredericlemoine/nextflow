@@ -504,7 +504,6 @@ class TaskPollingMonitor implements TaskMonitor {
         // check if it is terminated
         if( handler.checkIfCompleted() ) {
             log.debug "Task completed > $handler"
-
             // since completed *remove* the task from the processing queue
             evict(handler)
 

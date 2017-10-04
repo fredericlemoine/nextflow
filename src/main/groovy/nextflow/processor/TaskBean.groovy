@@ -81,7 +81,7 @@ class TaskBean implements Serializable, Cloneable {
 
     List<String> outputFiles
 
-    List<String,Path> checkpointFiles
+    Map<String,Path> checkpointFiles
 
     String stageInMode
 
@@ -92,6 +92,7 @@ class TaskBean implements Serializable, Cloneable {
     Path binDir
 
     def cleanup
+    TaskRun task
 
     @PackageScope
     TaskBean() {
@@ -102,9 +103,8 @@ class TaskBean implements Serializable, Cloneable {
     }
 
     TaskBean(TaskRun task) {
-
+        this.task = task
         this.name = task.name
-
         // set the input (when available)
         this.input = task.stdin
         this.scratch = task.scratch
@@ -147,5 +147,4 @@ class TaskBean implements Serializable, Cloneable {
     TaskBean clone() {
         (TaskBean)super.clone()
     }
-
 }

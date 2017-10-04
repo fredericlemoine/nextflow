@@ -49,7 +49,7 @@ class SimpleFileCopyStrategy implements ScriptFileCopyStrategy {
     /**
      * The checkpoint file names
      */
-    List<String,Path> checkpointFiles
+    Map<String,Path> checkpointFiles
 
     /**
      * Path where output files need to be copied

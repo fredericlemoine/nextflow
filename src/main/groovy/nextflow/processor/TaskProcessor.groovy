@@ -20,6 +20,7 @@
 package nextflow.processor
 
 import nextflow.script.CheckpointParam
+import nextflow.script.FileCheckpointParam
 
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -1376,7 +1377,8 @@ class TaskProcessor {
     protected void collectOutputs( TaskRun task ) {
         collectOutputs( task, task.getTargetDir(), task.@stdout, task.context )
     }
-    protected void collectCheckpoints( TaskRun task ) {
+    
+    protected void collectCheckpointFiles( TaskRun task ) {
         collectCheckpoints( task, task.getTargetDir(), task.context )
     }
 
@@ -1519,7 +1521,9 @@ class TaskProcessor {
 
             def splitter = param.glob ? FilePatternSplitter.glob().parse(filePattern) : null
             if( splitter?.isPattern() ) {
-                result = fetchResultFiles(param, filePattern, workDir)
+
+                result = fetchCheckpointFiles(param, filePattern, workDir)
+
                 // filter the inputs
                 if( !param.includeInputs ) {
                     result = filterByRemovingStagedInputs(task, result)
@@ -1542,8 +1546,54 @@ class TaskProcessor {
             else if( !param.optional )
                 throw new MissingFileException("Missing checkpoint file(s) `$filePattern` expected by process `${task.name}`")
         }
+        task.setCheckpoint( param, allFiles )
+    }
 
-        task.setCheckpoint( param, allFiles.size()==1 ? allFiles[0] : allFiles )
+
+
+    /**
+     * Collect the file(s) with the name specified, produced by the execution
+     *
+     * @param workDir The job working path
+     * @param namePattern The file name, it may include file name wildcards
+     * @return The list of files matching the specified name in lexicographical order
+     * @throws MissingFileException when no matching file is found
+     */
+    @PackageScope
+    List<Path> fetchCheckpointFiles( FileCheckpointParam param, String namePattern, Path workDir ) {
+        assert namePattern
+        assert workDir
+
+        List files = []
+        def opts = visitOptions(param, namePattern)
+        // scan to find the file with that name
+        try {
+            FileHelper.visitFiles(opts, workDir, namePattern) { Path it -> files.add(it) }
+        }
+        catch( NoSuchFileException e ) {
+            throw new MissingFileException("Cannot access folder: '$workDir'", e)
+        }
+
+        return files.sort()
+    }
+
+    /**
+     * Given a {@link FileOutParam} object create the option map for the
+     * {@link FileHelper#visitFiles(java.util.Map, java.nio.file.Path, java.lang.String, groovy.lang.Closure)} method
+     *
+     * @param param A task {@link FileOutParam}
+     * @param namePattern A file glob pattern
+     * @return A {@link Map} object holding the traverse options for the {@link FileHelper#visitFiles(java.util.Map, java.nio.file.Path, java.lang.String, groovy.lang.Closure)} method
+     */
+    @PackageScope
+    Map visitOptions(FileCheckpointParam param, String namePattern ) {
+        final opts = [:]
+        opts.relative = false
+        opts.hidden = param.hidden ?: namePattern.startsWith('.')
+        opts.followLinks = param.followLinks
+        opts.maxDepth = param.maxDepth
+        opts.type = param.type ? param.type : ( namePattern.contains('**') ? 'file' : 'any' )
+        return opts
     }
 
 
@@ -2072,14 +2122,13 @@ class TaskProcessor {
             collectOutputs(task)
         }
         catch ( Throwable error ) {
-            collectCheckpointFiles(task)
             fault = resumeOrDie(task, error)
         }
 
         // -- finalize the task
         if( fault != ErrorStrategy.RETRY )
             finalizeTask0(task)
-
+        collectCheckpointFiles(task)
         return fault
     }
 

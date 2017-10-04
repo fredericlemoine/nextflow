@@ -20,8 +20,9 @@
 
 package nextflow.processor
 
-import groovy.json.internal.Cache
+import nextflow.script.CheckpointParam
 import nextflow.script.CheckpointsList
+import nextflow.script.FileCheckpointParam
 
 import static nextflow.util.CacheHelper.HashMode
 
@@ -207,6 +208,9 @@ class ProcessConfig implements Map<String,Object> {
             case 'outputs':
                 return getOutputs()
 
+            case 'checkpoints':
+                return getCheckpoints()
+
             case 'cacheable':
                 return isCacheable()
 
@@ -318,6 +322,11 @@ class ProcessConfig implements Map<String,Object> {
         def result = new StdOutParam(this).bind('-')
         if( obj ) result.into(obj)
         result
+    }
+
+    // Checkpoint parameter
+    CheckpointParam _checkpoint_file(Object obj ) {
+        new FileCheckpointParam(this).bind(obj)
     }
 
 

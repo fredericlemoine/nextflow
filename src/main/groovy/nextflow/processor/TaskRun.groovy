@@ -121,6 +121,24 @@ class TaskRun implements Cloneable {
         assert param
         checkpoints[param] = value
     }
+    /**
+     * Look at the {@code nextflow.script.FileOutParam} which name is the expected
+     *  output name
+     *
+     */
+    Map<String,Path> getCheckpointFilesMap() {
+        def result = [:]
+        def allFiles = [:]
+        checkpoints.findAll() { it.value !=null }.each { allFiles << it }
+        for( List<Object> entry : allFiles.values()) {
+            if( entry ) for( Object it : entry ) {
+                def r = new FileHolder(it)
+                result[ r.stageName ] = r.storePath
+            }
+        }
+
+        return result
+    }
 
     /**
      * The value to be piped to the process stdin
@@ -437,25 +455,6 @@ class TaskRun implements Cloneable {
         }
 
         return result.unique()
-    }
-
-    /**
-     * Look at the {@code nextflow.script.FileOutParam} which name is the expected
-     *  output name
-     *
-     */
-    @Memoized
-    List<String,Path> getCheckpointFilesMap() {
-
-        def result = [:]
-        def allFiles = checkpoints.values()
-        for( List<FileHolder> entry : allFiles ) {
-            if( entry ) for( FileHolder it : entry ) {
-                result[ it.stageName ] = it.storePath
-            }
-        }
-
-        return result
     }
 
     /**
